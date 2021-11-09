@@ -13,12 +13,12 @@ redis_client = redis.Redis(host='localhost', port=6379, db=1)
 app = Flask(__name__)
 
 
-username = "XA15632"  # fyers_id
-password = "Samsungh67#"
-pan = "JUWPS0054P"
-client_id = "A6WSAGPKZA-100"  # '##########-$$$'
-secret_key = "2O2HUXI9ZJ"
-redirect_uri = "http://127.0.0.1:5000/login"
+username = os.environ.get('USERNAME') # fyers_id
+password = os.environ.get('PASSSWORD')
+pan = os.environ.get('PAN')
+client_id = os.environ.get('CLIENT_ID')  # '##########-$$$'
+secret_key = os.environ.get('SECRET_KEY')
+redirect_uri = os.environ.get('REDIRECT_URL')
 app_id = client_id[:-4]  # '##########'
 # fyers =
 # ALLOWED_API_NAMES = {'get_profile': fyers.get_profile(), 'funds': 'funds', 'holdings': 'holdings', 'history': 'history', 'quotes': 'quotes'}
