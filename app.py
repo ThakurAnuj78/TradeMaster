@@ -6,21 +6,20 @@ from urllib.parse import urlparse, parse_qs
 from fyers_api import fyersModel, accessToken
 from fyers_api.Websocket import ws
 import requests
-import redis
+# import redis
 
-redis_client = redis.Redis(host='localhost', port=6379, db=1)
+# redis_client = redis.Redis(host='localhost', port=6379, db=1)
 
 app = Flask(__name__)
 
 
-username = os.environ.get('USERNAME') # fyers_id
+username = os.environ.get('USERNAME')  # fyers_id
 password = os.environ.get('PASSSWORD')
 pan = os.environ.get('PAN')
 client_id = os.environ.get('CLIENT_ID')  # '##########-$$$'
 secret_key = os.environ.get('SECRET_KEY')
 redirect_uri = os.environ.get('REDIRECT_URL')
 app_id = client_id[:-4]  # '##########'
-# fyers =
 # ALLOWED_API_NAMES = {'get_profile': fyers.get_profile(), 'funds': 'funds', 'holdings': 'holdings', 'history': 'history', 'quotes': 'quotes'}
 
 
@@ -75,8 +74,8 @@ def setup():
 
 def get_token():
     try:
-        token = read_file()
-    except FileNotFoundError:
+        token = os.environ['TOKEN']
+    except KeyError:
         print('Getting the access token!')
         return setup()
         # sys.exit()
@@ -101,22 +100,14 @@ def login():
     return Response(json.dumps(resp), status=200, mimetype='application/json')
 
 
-def custom_message(msg):
-    print(f"Custom:{msg}")
-
-
-# @app.route('/get_data/<string:stock>')
-# def get_stock_data(stock):
-#     try:
-#         data = {"symbols": stock}
-#         fyers.quotes(data)
-#         # ws.websocket_data = custom_message
-#         # data_type = "orderUpdate"
-#         # fyers_socket = ws.FyersSocket(access_token=get_token(), run_background=False)
-#         # fyers_socket.subscribe(symbol=stock, data_type=data_type)
-#     except Exception as e:
-#         return e
-#     # return fyers_socket
+@app.route('/get_data/<string:stock>')
+def get_stock_data(stock):
+    try:
+        data = {"symbols": stock}
+        fyers = fyersModel.FyersModel(client_id=client_id, token=get_token())
+        return fyers.quotes(data)
+    except Exception as e:
+        return e
 
 
 if __name__ == '__main__':
