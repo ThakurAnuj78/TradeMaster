@@ -52,6 +52,7 @@ def setup():
     session.get(f'https://api.fyers.in/api/v2/generate-authcode?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code')
     data = f'{{"fyers_id":"{username}","password":"{password}","pan_dob":"{pan}","app_id":"{app_id}","redirect_uri":"{redirect_uri}","appType":"100","code_challenge":"","state":"abcdefg","scope":"","nonce":"","response_type":"code","create_cookie":true}}'
     r2 = session.post('https://api.fyers.in/api/v2/token', headers=headers, data=data)
+    print(r2.json())
 
     parsed = urlparse(r2.json()['Url'])
     auth_code = parse_qs(parsed.query)['auth_code'][0]
@@ -77,8 +78,8 @@ def get_token():
         token = read_file()
     except FileNotFoundError:
         print('Getting the access token!')
-        setup()
-        sys.exit()
+        return setup()
+        # sys.exit()
     fyers = fyersModel.FyersModel(client_id=client_id, token=token, log_path=os.getcwd())
     response = fyers.get_profile()
     if 'error' in response['s'] or 'error' in response['message'] or 'expired' in response['message']:
