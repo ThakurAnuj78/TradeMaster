@@ -104,18 +104,18 @@ def custom_message(msg):
     print(f"Custom:{msg}")
 
 
-@app.route('/get_data/<string:stock>')
-def get_stock_data(stock):
-    try:
-        data = {"symbols": stock}
-        fyers.quotes(data)
-        # ws.websocket_data = custom_message
-        # data_type = "orderUpdate"
-        # fyers_socket = ws.FyersSocket(access_token=get_token(), run_background=False)
-        # fyers_socket.subscribe(symbol=stock, data_type=data_type)
-    except Exception as e:
-        return e
-    # return fyers_socket
+# @app.route('/get_data/<string:stock>')
+# def get_stock_data(stock):
+#     try:
+#         data = {"symbols": stock}
+#         fyers.quotes(data)
+#         # ws.websocket_data = custom_message
+#         # data_type = "orderUpdate"
+#         # fyers_socket = ws.FyersSocket(access_token=get_token(), run_background=False)
+#         # fyers_socket.subscribe(symbol=stock, data_type=data_type)
+#     except Exception as e:
+#         return e
+#     # return fyers_socket
 
 
 if __name__ == '__main__':
