@@ -88,6 +88,7 @@ def login():
 
 @app.route('/get_data/<string:stock>')
 def get_stock_data(stock):
+    print(stock)
     try:
         data = {"symbols": stock}
         fyers = fyersModel.FyersModel(client_id=client_id, token=read_file(), log_path=os.getcwd())
