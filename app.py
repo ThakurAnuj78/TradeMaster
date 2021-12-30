@@ -93,6 +93,7 @@ def get_stock_data(stock):
         data = {"symbols": stock}
         fyers = fyersModel.FyersModel(client_id=client_id, token=read_file(), log_path=os.getcwd())
         resp = fyers.quotes(data)
+        print(resp)
         return Response(json.dumps({'data': resp.get('d')}), status=200, mimetype="application/json")
     except Exception as e:
         return Response({"data": str(e)}, status=500)
