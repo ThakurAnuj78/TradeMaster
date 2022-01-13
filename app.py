@@ -1,20 +1,38 @@
-from flask import Flask, Response
+from flask import Flask, Response, request
 import json
 import os
-import sys
+from os.path import join, dirname
+from dotenv import load_dotenv
 from urllib.parse import urlparse, parse_qs
 from fyers_api import fyersModel, accessToken
-import requests
+import psycopg2
+from traceback import format_exc
+from datetime import datetime, timezone
+
 
 app = Flask(__name__)
 
-username = os.environ['USERNAME']
-password = str(os.environ.get('PASSWORD'))
-pan = os.environ.get('PAN')
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
+
 client_id = os.environ['CLIENT_ID']
 secret_key = os.environ.get('SECRET_KEY')
 redirect_uri = os.environ.get('REDIRECT_URL')
 app_id = client_id[:-4]
+
+### DATABASE CONFIGS ###
+db_host = os.environ['DB_HOSTNAME']
+db_port = os.environ['DB_PORT']
+db_user = os.environ['DB_USERNAME']
+db_pass = os.environ['DB_PASSWORD']
+db_database = os.environ['DB_DATABASE']
+
+# class TokenNotFound(Exception):
+
+#     def __init__(self, message="Token not found"):
+#         self.message = message
+#         print(self.message)
+#         super().__init__(self.message)
 
 # ALLOWED_API_NAMES = { 'get_profile': fyers.get_profile(),
 #                       'funds': 'funds', 'holdings': 'holdings', 'history': 'history',
@@ -31,69 +49,75 @@ def write_file(token):
     with open('token_fyers.txt', 'w') as f:
         f.write(token)
 
-
-def setup():
-    session = accessToken.SessionModel(client_id=client_id, secret_key=secret_key, redirect_uri=redirect_uri,
-                                       response_type='code', grant_type='authorization_code')
-
-    headers = {
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) \
-                       Chrome/94.0.4606.81 Safari/537.36',
-        'content-type': 'application/json; charset=UTF-8',
-        'accept-language': 'en-US,en;q=0.9'}
-
-    data = f'{{"fyers_id":"{username}","password":"{password}","pan_dob":"{pan}","app_id":"{app_id}","redirect_uri":"{redirect_uri}","appType":"100","code_challenge":"","state":"abcdefg","scope":"","nonce":"","response_type":"code","create_cookie":true}}'
-    resp = requests.post('https://api.fyers.in/api/v2/token', headers=headers, data=data)
-    print("Login response ::: ", resp.json())
-    parsed = urlparse(resp.json()['Url'])
-    auth_code = parse_qs(parsed.query)['auth_code'][0]
-    session.set_token(auth_code)
-    response = session.generate_token()
-    token = response["access_token"]
-    write_file(token)
-    print('Got the access token!!!')
-    fyers = fyersModel.FyersModel(client_id=client_id, token=token, log_path=os.getcwd())
-    print(fyers.get_profile())
-
-
-def check():
+def write_token_to_db(token):
     try:
-        token = read_file()
-    except FileNotFoundError:
-        print('Getting the access token!')
-        setup()
-        sys.exit()
-    else:
-        fyers = fyersModel.FyersModel(client_id=client_id, token=token, log_path=os.getcwd())
-        response = fyers.get_profile()
-        if 'error' in response['s'] or 'error' in response['message'] or 'expired' in response['message']:
-            print('Getting a access token!')
-            setup()
-        else:
-            print('You already have a access token!')
-            print(response)
+        conn = psycopg2.connect(host=db_host, database=db_database, user=db_user, password=db_pass)
+        cur = conn.cursor()
+        cur.execute('INSERT INTO token (token, created_at) VALUES (%s, %s)', (token, datetime.now(timezone.utc)));
+        conn.commit()
+    except Exception as exc:
+        print("Error occurred: %s. Traceback:: %s", str(exc), format_exc())
+    finally:
+        conn.close()
 
+def read_token_from_db():
+    try:
+        conn = psycopg2.connect(host=db_host, database=db_database, user=db_user, password=db_pass)
+        cur = conn.cursor()
+        cur.execute("SELECT *  from token order by created_at asc")
+        rows = cur.fetchall()
+        token = None
+        for row in rows:
+            token = row[1]
+            print("ID = ", row[0])
+            print("Token = ", row[1])
+        return token
+    except Exception as exc:
+        print("Error occurred: %s", str(exc))
+    finally:
+        conn.close()
+
+session = accessToken.SessionModel(client_id=client_id, secret_key=secret_key,redirect_uri=redirect_uri, response_type='code', grant_type='authorization_code')
 
 @app.route('/')
-def hello_world():  # put application's code here
-    return 'Hello World!'
+def index():  
+    return 'Welcome. Get URL for auth code from get_authcode_url api'
+
+@app.route('/get_authcode_url')
+def get_auth_url(): 
+    global session
+    return session.generate_authcode() 
+
+@app.route('/generate_token/<string:auth_code>')
+def generate_access_token(auth_code):
+    global session
+    session.set_token(auth_code)
+    response = session.generate_token()
+    # print("generate_access_token: ", response["access_token"], type(response["access_token"]))
+    return response["access_token"]
 
 
 @app.route('/login')
 def login():
-    check()
-    resp = {'app_token': read_file()}
-    return Response(json.dumps(resp), status=200, mimetype='application/json')
+    global session
+    token = 'Could not login'
+    if request.args.get('s') == 'ok':
+        auth = request.args.get('auth_code')
+        token = generate_access_token(auth_code=auth)
+        # print("login: ", token, type(token))
+        write_token_to_db(token)
+    return Response(json.dumps({'access_token': token}), status=200, mimetype='application/json')
 
 
-@app.route('/get_data/<string:stock>')
-def get_stock_data(stock):
+@app.route('/get_data')
+def get_stock_data():
+    stock = request.args.get('stock')
     print("Quotes API param", stock)
     try:
         data = {"symbols": stock}
-        fyers = fyersModel.FyersModel(client_id=client_id, token=read_file(), log_path=os.getcwd())
+        fyers = fyersModel.FyersModel(client_id=client_id, token=read_token_from_db(), log_path=os.getcwd())
         resp = fyers.quotes(data)
-        print("Qoutes response ::: ", resp)
+        print("Quotes response ::: ", resp)
         return Response(json.dumps({'data': resp.get('d')}), status=200, mimetype="application/json")
     except Exception as e:
         return Response({"data": str(e)}, status=500)
